@@ -1,0 +1,1784 @@
+﻿.
+if _G.veastop then _G.veastop() end
+
+local plrs, rs = cloneref(game:GetService("Players")), cloneref(game:GetService("RunService"))
+local ws, rep = cloneref(game:GetService("Workspace")), cloneref(game:GetService("ReplicatedStorage"))
+local hs, lp = cloneref(game:GetService("HttpService")), plrs.LocalPlayer
+local up, flat = Vector3.yAxis, Vector3.new(1, 0, 1)
+
+local md = {
+        r = { on = false, vis = false, a = 0.8, c = Color3.new() },
+        b = { on = false, vis = false, a = 0.8, c = Color3.new() },
+        g = { dive = false, catch = false },
+        l = { on = false },
+        p = { on = false, v = "pc" },
+        s = { on = false },
+        f = { on = false },
+        a = { on = false, n = "" },
+        v = { on = false, c = Color3.new(1, 1, 1) },
+}
+local cons, arm, lmb, bls = {}, {}, {}, {}
+local chr, hrp, hum, ico
+local near, isb, sync
+local bag, tm, held, owner
+local press, start, keeper, jumping
+
+local function oops(e) warn("adv Hub error: " .. (string.gsub(tostring(e), "^.-:%d+: ", ""))) end
+local function rnd() return string.lower(string.sub((string.gsub(hs:GenerateGUID(false), "-", "")), 1, math.random(6, 12))) end
+
+do
+        local f = "veaicon.png"
+        if not isfile(f) then
+                local ok, res = pcall(game.HttpGet, game, "https://files.catbox.moe/rzclsk.png")
+                if ok then writefile(f, res) else oops(res) end
+        end
+        if isfile(f) then ico = getcustomasset(f) end
+end
+
+do
+        local tsz, traps = Vector3.new(2.5, 2.5, 2.5), {}
+        local gid = "^%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x$"
+
+        local function fake(o)
+                for k in traps do
+                        if o:GetAttribute(k) ~= nil then return true end
+                end
+                return false
+        end
+
+        isb = function(o) return o.Parent ~= nil and o.Size == tsz and not o.Anchored and o:FindFirstChild("Owner") ~= nil and not fake(o) end
+
+        local function addb(o)
+                if o.Name ~= "TPS" or not o:IsA("BasePart") then return end
+                for k, v in o:GetAttributes() do
+                        if type(v) == "string" and string.match(k, gid) and string.match(v, gid) then traps[k] = true end
+                end
+                bls[o] = true
+        end
+
+        local function watch(o)
+                addb(o)
+                if not (o:IsA("Folder") or o:IsA("Model")) or o:FindFirstChildOfClass("Humanoid") then return end
+                for _, c in o:GetChildren() do addb(c) end
+                cons[#cons + 1] = o.ChildAdded:Connect(addb)
+        end
+
+        for _, o in ws:GetChildren() do watch(o) end
+        cons[#cons + 1] = ws.ChildAdded:Connect(watch)
+
+        local nat, nb = 0
+
+        near = function()
+                local now = os.clock()
+                if nb and now - nat < 0.1 and nb.Parent and not nb.Anchored then return nb end
+                nb, nat = nil, now
+                if not hrp then return end
+                local pos, best = hrp.Position, math.huge
+                for b in bls do
+                        if not b.Parent then
+                                bls[b] = nil
+                        elseif isb(b) then
+                                local d = (b.Position - pos).Magnitude
+                                if d < best then nb, best = b, d end
+                        end
+                end
+                return nb
+        end
+end
+
+do
+        local tmm, tml
+
+        bag = function() return lp:FindFirstChildOfClass("Backpack") end
+
+        tm = function()
+                local bp = bag()
+                local m = bp and bp:FindFirstChild("ToolManagement")
+                if m ~= tmm then tmm, tml = m, m and require(m) end
+                return tml
+        end
+
+        held = function()
+                local ra = chr and chr:FindFirstChild("Right Arm")
+                return ra ~= nil and ra:FindFirstChild("handsOn") ~= nil
+        end
+
+        owner = function(b)
+                local o = b:FindFirstChild("Owner")
+                return o and o.Value
+        end
+
+        start = function()
+                local st = lp.PlayerGui:FindFirstChild("Start")
+                return st, st and st:FindFirstChild("ImageLabel")
+        end
+
+        press = function(name)
+                local _, il = start()
+                local btn = il and il:FindFirstChild(name)
+                if btn then firesignal(btn.MouseButton1Down) end
+        end
+
+        keeper = function()
+                local bp = bag()
+                return (bp and bp:FindFirstChild("GK") or chr and chr:FindFirstChild("GK")) ~= nil
+        end
+
+        jumping = function()
+                local bp = bag()
+                local mm = bp and bp:FindFirstChild("Module_Management")
+                local j = mm and mm:FindFirstChild("Jumping")
+                return j ~= nil and j.Value
+        end
+end
+
+-- reach
+local rch = {}
+do
+        local run, co, sp, sv = coroutine.running, rep:FindFirstChild("ChangeOwner"), {}, {}
+        local real, wr = setmetatable({}, { __mode = "k" }), setmetatable({}, { __mode = "k" })
+        local oi, onc, orb, cb
+        local tg, lb, pown
+        local last, kick, snd, clm = 0, 0, 0, 0
+        local lost, lt, lr = 0, 0, 0
+
+        local function hk(on)
+                if on == (oi ~= nil) then return end
+                if not on then
+                        hookmetamethod(game, "__index", oi)
+                        hookmetamethod(game, "__namecall", onc)
+                        oi, onc = nil, nil
+                        return
+                end
+                local idx, nc
+                idx = hookmetamethod(game, "__index", newcclosure(function(self, k)
+                        if k ~= "Position" or not sp[self] or real[run()] or checkcaller() then return idx(self, k) end
+                        local b = tg
+                        if b then return b.Position end
+                        return idx(self, k)
+                end))
+                nc = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+                        local m = getnamecallmethod()
+                        if m ~= "FireServer" and m ~= "GetPartBoundsInBox" or checkcaller() then return nc(self, ...) end
+                        if m == "FireServer" then
+                                if (...) ~= "BallSound" then return nc(self, ...) end
+                                local now = os.clock()
+                                if now - snd < 0.35 then return end
+                                snd = now
+                                return nc(self, ...)
+                        end
+                        local res, b = nc(self, ...), tg
+                        if not b or #res > 0 then return res end
+                        local _, _, prm = ...
+                        if typeof(prm) == "OverlapParams" and table.find(prm.FilterDescendantsInstances, b) then return { b } end
+                        return res
+                end))
+                oi, onc = idx, nc
+        end
+
+        local function rc(f)
+                local function w(...)
+                        local th = run()
+                        real[th] = true
+                        local res = table.pack(pcall(f, ...))
+                        real[th] = nil
+                        if not res[1] then error(res[2], 0) end
+                        return table.unpack(res, 2, res.n)
+                end
+                wr[w] = true
+                return w
+        end
+
+        local function wrap(root)
+                for _, s in root:GetDescendants() do
+                        if not s:IsA("LocalScript") then continue end
+                        local env = getsenv(s)
+                        local f = type(env) == "table" and rawget(env, "AddPowers")
+                        if type(f) == "function" and not wr[f] then
+                                sv[env] = f
+                                rawset(env, "AddPowers", rc(f))
+                        end
+                end
+        end
+
+        local function crv(on)
+                for env, f in sv do
+                        if wr[rawget(env, "AddPowers")] then rawset(env, "AddPowers", f) end
+                end
+                table.clear(sv)
+                cb = nil
+                if not on then return end
+                cb = bag()
+                if cb then wrap(cb) end
+                if chr then wrap(chr) end
+        end
+
+        local function gap(b)
+                local p, best = b.Position, math.huge
+                for _, l in lmb do
+                        local d = (p - l.Position).Magnitude
+                        if d < best then best = d end
+                end
+                return best
+        end
+
+        local function pick(now, b)
+                b = lb or b
+                if not b or held() then return end
+                local g, far = gap(b), true
+                if md.r.on and md.r.sz then far = (b.Position - hrp.Position).Magnitude > md.r.sz end
+                if md.b.on and md.b.sz then far = g > md.b.sz end
+                if lb and g <= lr then far = false end
+                if far then pown = nil end
+                if far or g <= 2 then return end
+                local own = owner(b)
+                if own and own ~= lp and pown == lp then lost = now end
+                pown = own
+                if own and own ~= lp and (now - lost < 0.4 or b:FindFirstChild("ReactDecline")) then return end
+                return b
+        end
+
+        local function draw(b)
+                local m, at = md.r, hrp
+                if md.b.on then m, at = md.b, b or hrp end
+                if not (at and m.vis and m.sz) or m.a >= 1 then
+                        if orb.Parent then orb.Parent = nil end
+                        return
+                end
+                local s = m.sz * 2
+                if orb.Size.X ~= s then orb.Size = Vector3.one * s end
+                if orb.Transparency ~= m.a then orb.Transparency = m.a end
+                if orb.Color ~= m.c then orb.Color = m.c end
+                orb.CFrame = CFrame.new(at.Position)
+                if not orb.Parent then orb.Parent = ws.CurrentCamera end
+        end
+
+        function rch.lend(b, till, r)
+                if lb ~= b then lt = 0 end
+                lb, lt, lr = b, math.max(lt, till), r
+        end
+
+        function rch.step(now, b)
+                if orb then draw(b) end
+                if lb and (now > lt or not lb.Parent or held()) then lb = nil end
+                tg = (md.r.on or md.b.on or lb) and pick(now, b)
+                if not tg then return hk(false) end
+                if co and owner(tg) == nil and now - clm > 0.1 then
+                        clm = now
+                        co:FireServer(tg, "Tackle")
+                end
+                local t = tm()
+                if not (t and t.GetUsing()) then return hk(false) end
+                if bag() ~= cb then crv(true) end
+                hk(true)
+                local bv = tg:FindFirstChild(lp.Name)
+                if bv and bv:IsA("BodyVelocity") and bv.Velocity.Magnitude >= 45 then kick = now end
+                if now - last < 0.03 or now - kick < 0.6 then return end
+                last = now
+                for _, p in lmb do
+                        firetouchinterest(p, tg, 0)
+                        firetouchinterest(p, tg, 1)
+                end
+        end
+
+        function rch.stop()
+                tg, lb = nil, nil
+                hk(false)
+                crv(false)
+        end
+
+        function rch.sync()
+                local on = md.r.on or md.b.on
+                if on and not orb then
+                        orb = Instance.new("Part")
+                        orb.Name, orb.Shape, orb.Material = rnd(), Enum.PartType.Ball, Enum.Material.ForceField
+                        orb.Anchored, orb.CanCollide, orb.CanTouch, orb.CanQuery, orb.CastShadow, orb.Massless = true, false, false, false, false, true
+                elseif not on and orb then
+                        orb:Destroy()
+                        orb = nil
+                        rch.stop()
+                end
+        end
+
+        function rch.bind()
+                tg, cb = nil, nil
+                table.clear(sp)
+                if hrp then sp[hrp] = true end
+                for _, p in lmb do sp[p] = true end
+        end
+end
+
+local gl = {}
+do
+        local at, done, list, map = -9, false
+        local op, rp = OverlapParams.new(), RaycastParams.new()
+        op.FilterType, op.MaxParts = Enum.RaycastFilterType.Exclude, 300
+        rp.FilterType, rp.RespectCanCollide = Enum.RaycastFilterType.Exclude, true
+
+        local function aabb(p)
+                local cf, s = p.CFrame, p.Size
+                local r, u, l = cf.RightVector, cf.UpVector, cf.LookVector
+                local e = Vector3.new(
+                        math.abs(r.X * s.X) + math.abs(u.X * s.Y) + math.abs(l.X * s.Z),
+                        math.abs(r.Y * s.X) + math.abs(u.Y * s.Y) + math.abs(l.Y * s.Z),
+                        math.abs(r.Z * s.X) + math.abs(u.Z * s.Y) + math.abs(l.Z * s.Z)
+                ) / 2
+                return p.Position - e, p.Position + e
+        end
+
+        local function net(m, stad, anc, ap)
+                local lo, hi
+                for _, p in ws:GetPartBoundsInBox(CFrame.new(ap), Vector3.one * 50, op) do
+                        if p == anc or not p.CanCollide or p.Name == "TPS" or (p.Position - ap).Magnitude > 25 then continue end
+                        if not (p:IsDescendantOf(m) or stad and p:IsDescendantOf(stad)) then continue end
+                        local l, h = aabb(p)
+                        local e = h - l
+                        if e.X > 60 or e.Y > 60 or e.Z > 60 then continue end
+                        lo, hi = lo and lo:Min(l) or l, hi and hi:Max(h) or h
+                end
+                return lo, hi
+        end
+
+        local function mouth(lo, hi, mid, skip)
+                local c = (lo + hi) / 2
+                local n, line, hw
+                if math.abs(mid.X - c.X) > math.abs(mid.Z - c.Z) then
+                        local s = c.X > mid.X and 1 or -1
+                        n, line, hw = Vector3.new(s, 0, 0), Vector3.new(s > 0 and lo.X or hi.X, lo.Y, c.Z), (hi.Z - lo.Z) / 2
+                else
+                        local s = c.Z > mid.Z and 1 or -1
+                        n, line, hw = Vector3.new(0, 0, s), Vector3.new(c.X, lo.Y, s > 0 and lo.Z or hi.Z), (hi.X - lo.X) / 2
+                end
+                rp.FilterDescendantsInstances = skip
+                local hit = ws:Raycast(line - n * 4 + Vector3.new(0, 12, 0), Vector3.new(0, -30, 0), rp)
+                return { c = line, n = n, r = n:Cross(up), hw = hw, top = hi.Y, floor = hit and hit.Position.Y or lo.Y }
+        end
+
+        local function cmap()
+                local v = rep:FindFirstChild("WorkspaceStadiumMap")
+                return v and ws:FindFirstChild("WorkspaceStadiumMap" .. v.Value) or ws:FindFirstChild("WorkspaceStadiumMap")
+        end
+
+        local function piv(o) return o:IsA("Model") and o:GetPivot().Position or o.Position end
+
+        local function build()
+                local m = cmap()
+                map, list, done = m, nil, false
+                if not m then return end
+                local a, b = m:FindFirstChild("Goal1"), m:FindFirstChild("Goal2")
+                if not (a and b) then a, b = m:FindFirstChild("Team1"), m:FindFirstChild("Team2") end
+                if not (a and b) then return end
+                local skip = { ws.CurrentCamera, ws:FindFirstChild("WorkspaceCharacters") }
+                op.FilterDescendantsInstances = skip
+                local stad = ws:FindFirstChild("WorkspaceStadiumFolder")
+                local pa, pb = piv(a), piv(b)
+                local alo, ahi = net(m, stad, a, pa)
+                local blo, bhi = net(m, stad, b, pb)
+                if not (alo and blo) then return end
+                local mid = (pa + pb) / 2
+                list, done = { mouth(alo, ahi, mid, skip), mouth(blo, bhi, mid, skip) }, true
+        end
+
+        function gl.own(pos)
+                local now = os.clock()
+                if now - at > 2 then
+                        at = now
+                        if not done or cmap() ~= map then build() end
+                end
+                if not list then return end
+                local bd, best = 75
+                for _, g in list do
+                        local d = (pos - g.c).Magnitude
+                        if d < bd then best, bd = g, d end
+                end
+                return best
+        end
+end
+
+-- auto dive
+local gk = {}
+do
+        local k = {
+                mid = 0.3, depth = 2.3, slide = 0.08, front = 8, lane = 1.5, lowy = 0.26, highup = 3.1, highvy = 3.5,
+                airvy = 2.25, lift = 0.3, jv = 53.5, jg = 98.1, creach = 2.2, clead = 0.16, startup = 1 / 60,
+        }
+        local nrm, cls = { speed = 32, dur = 0.7, lag = 0 }, { speed = 30, dur = 0.45, lag = 0.065 }
+        local pose = { 0, -3.1, 2.1, 0.3, -3.3, 2.1, 0.45, -2.9, 3, 0.6, -2.2, 2.8 }
+        local drag = math.exp(-0.115 / 60)
+        local mvs = {
+                BodyVelocity = true, BodyAngularVelocity = true, BodyThrust = true, BodyPosition = true,
+                LinearVelocity = true, AngularVelocity = true, VectorForce = true,
+        }
+        local pt, px, py = table.create(130, 0), table.create(130, 0), table.create(130, 0)
+        local pz, qy = table.create(130, 0), table.create(130, 0)
+        local sm = { n = 0, on = false }
+        local fl = { hold = 0, ay = 0, cap = 0, lat = 0, fade = 0, unsure = false, guess = false }
+        local st = { rx = 0, rz = 0, lx = 0, lz = 0, h2 = 0, air = false, jump = false, cls = false, spec = nrm }
+        local pk = { n = 0, jump = false, tau = 0, score = 0 }
+        local bs = { n = 0, jump = false, tau = 0, te = 0, i = 0 }
+        local trk, born = setmetatable({}, { __mode = "k" }), setmetatable({}, { __mode = "k" })
+        local busy, free, last = 0, 0, 0
+        local cc, cg, cbusy, cw = {}, 0, false
+
+        local function grav(b)
+                for _, c in b:GetChildren() do
+                        if c:IsA("BodyForce") and c.Name ~= "Curve" then return ws.Gravity - c.Force.Y / b:GetMass() end
+                end
+                return ws.Gravity
+        end
+
+        local function lsq(s, now, span, from, least)
+                local n, sumt, sumv = 0, 0, Vector3.zero
+                for j = 1, s.n do
+                        local i = (s.i - j) % 12 + 1
+                        local t = s.t[i]
+                        if t < from or now - t > span then break end
+                        n += 1
+                        sumt += t
+                        sumv += s.v[i]
+                end
+                if n < least then return end
+                local mt, mv = sumt / n, sumv / n
+                local num, den = Vector3.zero, 0
+                for j = 1, n do
+                        local i = (s.i - j) % 12 + 1
+                        local d = s.t[i] - mt
+                        num += (s.v[i] - mv) * d
+                        den += d * d
+                end
+                if den < 1e-4 then return end
+                return num / den
+        end
+
+        local function track(b, now)
+                local v = b.AssemblyLinearVelocity
+                local s = trk[b]
+                if not s then
+                        s = {
+                                t = table.create(12, 0), v = table.create(12, Vector3.zero), n = 0, i = 0,
+                                kick = v.Magnitude > 15 and now - 1 / 60 or -9, seg = now, lt = now, lv = v,
+                                spin = 0, g = grav(b), gat = now,
+                        }
+                        trk[b] = s
+                end
+                local dt = now - s.lt
+                if dt < 0.004 then return s end
+                local guess = s.acc and s.lv + s.acc * dt or s.lv
+                if dt > 0.1 then
+                        s.kick, s.spin, s.seg, s.n = v.Magnitude > 15 and now - 1 / 60 or -9, 0, now, 0
+                elseif (v - guess).Magnitude > 12 + 60 * dt then
+                        local pv = s.lv
+                        if not (pv.Y < -4 and v.Y > 0 and (v * flat).Magnitude <= (pv * flat).Magnitude + 2) then s.kick, s.spin = now, 0 end
+                        s.seg, s.n = now, 0
+                elseif s.seg < s.kick + 0.31 and now - s.kick >= 0.31 then
+                        s.seg = s.kick + 0.31
+                end
+                s.i = s.i % 12 + 1
+                s.t[s.i], s.v[s.i] = now, v
+                s.n = math.min(s.n + 1, 12)
+                s.lt, s.lv = now, v
+                if now - s.kick < 0.45 then
+                        local w = b.AssemblyAngularVelocity.Y
+                        if math.abs(w) > math.abs(s.spin) then s.spin = w end
+                end
+                if now - s.gat > 1 then s.g, s.gat = grav(b), now end
+                s.acc, s.lift = lsq(s, now, 0.15, s.seg, 3), lsq(s, now, 0.07, math.max(s.seg, s.kick + 0.008), 2)
+                return s
+        end
+
+        local function flight(b, s, now, v)
+                local sp, age = (v * flat).Magnitude, now - s.kick
+                fl.hold, fl.ay, fl.cap, fl.lat, fl.fade, fl.unsure, fl.guess, fl.bv = 0, 0, v.Y, 0, 0, false, false, nil
+                local bv = b:FindFirstChildOfClass("BodyVelocity")
+                if bv then
+                        born[bv] = born[bv] or now
+                        fl.hold, fl.bv = math.max(0.31 - (now - born[bv]), 0), bv
+                elseif age < 0.31 then
+                        local a = s.lift
+                        fl.hold = (a and a.Y < -40) and 0 or 0.31 - age
+                        if not a then
+                                fl.unsure = true
+                        else
+                                fl.ay, fl.cap = a.Y, a.Y > 1 and math.max(v.Y, sp * 0.38) or v.Y
+                        end
+                end
+                if sp < 5 then return end
+                local a = s.acc
+                if fl.hold <= 0 and a and now - s.seg > 0.05 then
+                        local lat = a:Dot(v:Cross(up).Unit)
+                        if math.abs(lat) > 4 then fl.lat, fl.fade = lat, 40 end
+                elseif math.abs(s.spin) > 20 and age < 1.5 then
+                        local f, m = s.spin > 0 and 2.5 or -3, b:GetMass()
+                        fl.lat = f * math.max(sp / 0.94 - 35 * math.max(age, 0.31), 0) / m
+                        fl.fade, fl.guess = math.abs(f) * 35 / m, true
+                end
+        end
+
+        local function sim(b, s, now, floor, m, maxn, alt)
+                local pos, vel = b.Position, b.AssemblyLinearVelocity
+                flight(b, s, now, vel)
+                local dt, gv = 1 / 60, Vector3.new(0, s.g, 0)
+                local hold, lat, fade, bv = fl.hold, fl.lat, fl.fade, fl.bv
+                local capy = alt and vel.Y or fl.cap
+                local cap, hv
+                if bv then
+                        local f, mass = bv.MaxForce, b:GetMass()
+                        cap, hv = Vector3.new(math.abs(f.X), math.abs(f.Y), math.abs(f.Z)) / mass, bv.Velocity
+                end
+                local d0, t = m and (pos - m.c):Dot(m.n), 0
+                if not alt then sm.n, sm.on = 0, false end
+                for i = 1, maxn do
+                        t += dt
+                        local nv
+                        if t <= hold then
+                                if hv then
+                                        local need = (hv - vel) / dt + gv
+                                        nv = vel + (Vector3.new(
+                                                math.clamp(need.X, -cap.X, cap.X),
+                                                math.clamp(need.Y, -cap.Y, cap.Y),
+                                                math.clamp(need.Z, -cap.Z, cap.Z)
+                                        ) - gv) * dt
+                                else
+                                        local vy = vel.Y
+                                        if fl.ay > 0 and vy < capy then
+                                                vy = math.min(vy + fl.ay * dt, capy)
+                                        elseif fl.ay < 0 then
+                                                vy += fl.ay * dt
+                                        end
+                                        nv = Vector3.new(vel.X, vy, vel.Z)
+                                end
+                        else
+                                local acc = -gv
+                                if lat ~= 0 then
+                                        local side = vel:Cross(up)
+                                        if side.Magnitude > 1e-3 then acc += side.Unit * lat end
+                                        local drop = fade * dt
+                                        lat = math.abs(lat) <= drop and 0 or lat - drop * math.sign(lat)
+                                end
+                                nv = vel + acc * dt
+                                if pos.Y <= floor + 0.05 then
+                                        local h = math.sqrt(nv.X * nv.X + nv.Z * nv.Z)
+                                        if h > 1e-3 then
+                                                local f = math.max(h - (h > 24 and 31 or math.min(0.8 * h, 12)) * dt, 0) / h
+                                                nv = Vector3.new(nv.X * f, nv.Y, nv.Z * f)
+                                        end
+                                else
+                                        nv = Vector3.new(nv.X * drag, nv.Y, nv.Z * drag)
+                                end
+                        end
+                        pos += (vel + nv) * (dt / 2)
+                        vel = nv
+                        if pos.Y < floor and vel.Y < 0 then
+                                local vy, f = -vel.Y * 0.61, math.max(1 + 0.009 * vel.Y, 0)
+                                pos = Vector3.new(pos.X, floor, pos.Z)
+                                vel = vy < 2 and Vector3.new(vel.X, 0, vel.Z) or Vector3.new(vel.X * f, vy, vel.Z * f)
+                        end
+                        if alt then
+                                qy[i] = pos.Y
+                                if i >= alt then return end
+                                continue
+                        end
+                        sm.n = i
+                        pt[i], px[i], py[i], pz[i] = t, pos.X, pos.Y, pos.Z
+                        if m then
+                                local d1 = (pos - m.c):Dot(m.n)
+                                if d0 < 0 and d1 >= 0 then
+                                        local wide, high = bv and 0.6 or 0.8, bv and 0.3 or 0.5
+                                        sm.on = math.abs((pos - m.c):Dot(m.r)) <= m.hw + wide and pos.Y <= m.top + high
+                                        return
+                                end
+                                d0 = d1
+                        end
+                end
+        end
+
+        local function line(b, m)
+                local v = b.AssemblyLinearVelocity
+                local vin = v:Dot(m.n)
+                if vin >= 0.5 * (v * flat).Magnitude then return true end
+                local off = b.Position - m.c
+                return math.abs(off:Dot(m.r) - v:Dot(m.r) * off:Dot(m.n) / vin) <= m.hw + 0.8
+        end
+
+        local function yj(t) return math.max(k.jv * t - k.jg * t * t, 0) end
+
+        local function fit(h, lo, hi) return math.min(h - lo, hi - h, st.h2 - lo, hi - st.h2) end
+
+        local function body(r, tau)
+                for i = 4, #pose, 3 do
+                        if tau <= pose[i] then
+                                local a = math.max(tau - pose[i - 3], 0) / (pose[i] - pose[i - 3])
+                                return r + pose[i - 2] + (pose[i + 1] - pose[i - 2]) * a, r + pose[i - 1] + (pose[i + 2] - pose[i - 1]) * a
+                        end
+                end
+                return r + pose[#pose - 1], r + pose[#pose]
+        end
+
+        local function low(tau, front)
+                local r = k.lowy
+                if st.cls and not front then
+                        local f = math.max(tau - 0.05, 0)
+                        r = math.max(2.5 - k.jg * f * f, -2)
+                elseif st.air then
+                        r = (front and 0 or -3) + 1.5 * tau
+                end
+                return body(r, tau)
+        end
+
+        local function high(tau, base, tj)
+                if st.cls and base > 0 then
+                        return body(math.max(base + 0.4 + (k.jv - 2 * k.jg * tj + 7.2) * tau - 93.75 * tau * tau, -2), tau)
+                end
+                if st.cls then
+                        local f = math.max(tau - 0.07, 0)
+                        return body(math.max(7.5 - k.jg * f * f, -2), tau)
+                end
+                if base > 0 then return body(base + k.lift + k.airvy * tau, tau) end
+                if st.air then return body(k.airvy * tau, tau) end
+                return body(k.highup + k.highvy * tau, tau)
+        end
+
+        local function try(btn, n, jump, tau, margin, cost, axis)
+                if margin < -0.25 then return end
+                local score = math.min(margin, 1) - cost
+                if pk.btn and score <= pk.score then return end
+                pk.btn, pk.n, pk.jump, pk.tau, pk.score, pk.axis = btn, n, jump, tau, score, axis
+        end
+
+        local function jcatch(te, h)
+                local most, bt = -math.huge
+                for tj = 0.1, 0.5, 0.04 do
+                        if tj > te then break end
+                        local y = yj(tj)
+                        local f = fit(h, y - 0.2, y + 3.9)
+                        if f > most then most, bt = f, tj end
+                end
+                if bt then try("High Catch", bt, true, math.max(bt - 0.2, 0), most, 0.4, nil) end
+        end
+
+        local function jdive(te, h, n, btn, axis, deep)
+                for tj = 0.06, 0.27, 0.03 do
+                        for e = -k.slide, k.slide + 0.001, k.slide do
+                                local after = n + e
+                                if after >= 0 and tj + after <= te and after <= st.spec.dur + 0.05 then
+                                        local lo, hi = high(after, yj(tj), tj)
+                                        try(btn, tj + after, true, tj, math.min(fit(h, lo, hi), deep), 0.45 + 2 * math.abs(e), axis)
+                                end
+                        end
+                end
+        end
+
+        local function opts(te, along, ahead, h)
+                pk.btn = nil
+                local spec = st.spec
+                if math.sqrt(along * along + ahead * ahead) <= k.creach then
+                        local n = k.startup + k.clead
+                        if te >= n and te <= 0.5 then
+                                try("Low Catch", n, false, 0, fit(h, -3.2, 1.2), 0, nil)
+                                try("High Catch", n, false, 0, fit(h, -0.2, 3.9), 0.02, nil)
+                        end
+                        if st.jump and not st.cls and h > 3 then jcatch(te, h) end
+                end
+                if math.abs(along) <= k.lane and ahead > -1 and ahead <= k.front then
+                        local n = math.max(ahead - k.mid, 0) / nrm.speed
+                        if n <= te and n <= nrm.dur then
+                                local lo, hi = low(n, true)
+                                try("GK H", n, false, 0, fit(h, lo, hi), 0.12, "look")
+                        end
+                end
+                local side = math.abs(along)
+                if math.abs(ahead) > k.depth or side < 1 then return end
+                local n = spec.lag + math.max(side - k.mid, 0) / spec.speed
+                if n > spec.dur then return end
+                local left, deep = along < 0, k.depth - math.abs(ahead)
+                local axis = left and "left" or "right"
+                local lb, hb = left and "GK Z" or "GK C", left and "GK Z2" or "GK C2"
+                for e = -k.slide, k.slide + 0.001, k.slide / 2 do
+                        local tau = n + e
+                        if tau >= 0 and tau <= te then
+                                local lo, hi = low(tau)
+                                try(lb, tau, false, 0, math.min(fit(h, lo, hi), deep), 0.1 + 2 * math.abs(e), axis)
+                                lo, hi = high(tau, 0)
+                                try(hb, tau, false, 0, math.min(fit(h, lo, hi), deep), 0.25 + 2 * math.abs(e), axis)
+                        end
+                end
+                if st.jump and h > 4 then jdive(te, h, n, hb, axis, deep) end
+        end
+
+        local function cut(b, upto)
+                local own = owner(b)
+                for _, p in plrs:GetPlayers() do
+                        if p == lp or p == own then continue end
+                        local c = p.Character
+                        local r = c and c:FindFirstChild("HumanoidRootPart")
+                        if not r then continue end
+                        local rp = r.Position
+                        for i = 2, upto - 1, 2 do
+                                local dx, dz = px[i] - rp.X, pz[i] - rp.Z
+                                if dx * dx + dz * dz <= 12.25 then
+                                        local dy = py[i] - rp.Y
+                                        if dy >= -2.5 and dy <= 7 then return true end
+                                end
+                        end
+                end
+                return false
+        end
+
+        local function camon(n)
+                if n and n ~= cg then return end
+                for _, c in cc do c:Enable() end
+                table.clear(cc)
+                if cw then
+                        cw:Disconnect()
+                        cw = nil
+                end
+        end
+
+        local function camoff()
+                camon()
+                cg += 1
+                for _, c in getconnections(rs.RenderStepped) do
+                        local f = c.Function
+                        if type(f) == "function" and not isexecutorclosure(f) and string.find(debug.info(f, "s"), ".Backpack.GK.", 1, true) then
+                                c:Disable()
+                                cc[#cc + 1] = c
+                        end
+                end
+                local cam, h = ws.CurrentCamera, hum
+                cw = cam:GetPropertyChangedSignal("CameraSubject"):Connect(function()
+                        local s = cam.CameraSubject
+                        if s ~= h and s and chr and s:IsDescendantOf(chr) then cam.CameraSubject = h end
+                end)
+                return cg
+        end
+
+        local function go(btn, jump, tau, axis)
+                busy = os.clock() + 0.9 + tau
+                task.spawn(function()
+                        if jump and hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+                        if tau > 0 then
+                                local t0 = os.clock()
+                                repeat rs.Heartbeat:Wait() until os.clock() - t0 >= tau - 1 / 120
+                        end
+                        local r = hrp
+                        if not (r and hum and md.g.dive) or held() then return end
+                        local seen = {}
+                        for _, o in r:GetChildren() do
+                                if o:IsA("BodyVelocity") then seen[o] = true end
+                        end
+                        local t = tm()
+                        if axis and md.g.catch and t then
+                                t.CatchTheBall()
+                                task.delay(0.25, t.CatchTheBall)
+                                task.delay(0.5, t.CatchTheBall)
+                        end
+                        task.delay(1.9, camon, camoff())
+                        press(btn)
+                        if not axis then return end
+                        for _ = 1, 4 do
+                                for _, o in r:GetChildren() do
+                                        if o:IsA("BodyVelocity") and not seen[o] then return end
+                                end
+                                rs.Heartbeat:Wait()
+                        end
+                        busy = os.clock() + 0.15
+                end)
+        end
+
+        local function frame()
+                local cf = hrp.CFrame
+                local rv, lv = (cf.RightVector * flat).Unit, (cf.LookVector * flat).Unit
+                local cgk = rep:FindFirstChild("ClassicGK")
+                local grounded = hum.FloorMaterial ~= Enum.Material.Air
+                st.rx, st.rz, st.lx, st.lz = rv.X, rv.Z, lv.X, lv.Z
+                st.cls = cgk ~= nil and cgk.Value
+                st.spec, st.air = st.cls and cls or nrm, not grounded
+                st.jump = grounded and hum.JumpPower >= 30
+                return grounded or jumping()
+        end
+
+        local function threat(m, now)
+                local hit, be
+                for o in bls do
+                        local v = o.AssemblyLinearVelocity
+                        if not o.Parent or v.Magnitude < 1 then continue end
+                        track(o, now)
+                        local into = v:Dot(m.n)
+                        if into < 6 then continue end
+                        local d = -(o.Position - m.c):Dot(m.n)
+                        if d < -1 or d > 110 then continue end
+                        local eta = d / into
+                        if eta > 1.7 or (be and eta >= be) or not isb(o) or owner(o) == lp then continue end
+                        hit, be = o, eta
+                end
+                return hit
+        end
+
+        local function effort(r0, gap)
+                local bsh, bw, bi = 6, 0
+                local spec = st.spec
+                for i = 1, sm.n do
+                        local te = pt[i]
+                        if te > spec.dur then continue end
+                        local fx, fz = px[i] - r0.X, pz[i] - r0.Z
+                        if math.abs(fx * st.lx + fz * st.lz) > k.depth + 1 then continue end
+                        local need = math.max(math.abs(fx * st.rx + fz * st.rz) - k.mid, 0)
+                        local short = math.max(need - spec.speed * (te - spec.lag + k.slide), 0)
+                        if short < bsh then bi, bsh, bw = i, short, te - spec.lag - need / spec.speed end
+                end
+                if not bi or bsh <= 0 and bw > gap then return end
+                local left = (px[bi] - r0.X) * st.rx + (pz[bi] - r0.Z) * st.rz < 0
+                local _, hi = low(pt[bi])
+                local lowb = py[bi] - r0.Y <= hi
+                go(left and (lowb and "GK Z" or "GK Z2") or (lowb and "GK C" or "GK C2"), false, 0, left and "left" or "right")
+        end
+
+        function gk.dive(now)
+                local gap = math.clamp(now - last, 1 / 240, 0.05)
+                last = now
+                if now < busy or held() or hum.Health <= 0 then return end
+                local m = gl.own(hrp.Position)
+                if not m then return end
+                local b = threat(m, now)
+                if not b or not keeper() then return end
+                local t = tm()
+                if not t or t.GetUsing() or not frame() then return end
+                local s, floor = trk[b], m.floor + 1.25
+                sim(b, s, now, floor, m, 110)
+                if not sm.on or fl.unsure or fl.guess and not line(b, m) then return end
+                local alt = not fl.bv and fl.hold > 0 and fl.ay > 0
+                if alt then sim(b, s, now, floor, m, 110, sm.n) end
+                local r0 = hrp.Position
+                local top, first = -math.huge
+                bs.btn = nil
+                for i = 1, sm.n do
+                        local te = pt[i]
+                        local fx, fz = px[i] - r0.X, pz[i] - r0.Z
+                        local h = py[i] - r0.Y
+                        st.h2 = alt and qy[i] - r0.Y or h
+                        opts(te, fx * st.rx + fz * st.rz, fx * st.lx + fz * st.lz, h)
+                        if pk.btn then
+                                first = first or te
+                                local score = pk.score - 0.5 * (te - first)
+                                if score > top then
+                                        top = score
+                                        bs.btn, bs.n, bs.jump, bs.tau, bs.axis, bs.te, bs.i = pk.btn, pk.n, pk.jump, pk.tau, pk.axis, te, i
+                                end
+                        end
+                end
+                if not bs.btn then return effort(r0, gap) end
+                if bs.te - bs.n > gap or cut(b, bs.i) then return end
+                go(bs.btn, bs.jump, bs.tau, bs.axis)
+        end
+
+        -- auto catch
+        local function posed()
+                local torso = chr and chr:FindFirstChild("Torso")
+                if not torso then return false end
+                for _, w in torso:GetChildren() do
+                        if w:IsA("Weld") and w.Part1 and string.find(w.Part1.Name, "Arm", 1, true) then return true end
+                end
+                return false
+        end
+
+        local function grab(b, t0)
+                repeat rs.Heartbeat:Wait() until posed() or os.clock() - t0 > 0.12
+                while os.clock() - t0 < 0.55 and posed() and not held() and b.Parent and hrp do
+                        if (b.Position - hrp.Position).Magnitude <= md.g.cr then
+                                for _, p in lmb do
+                                        firetouchinterest(p, b, 0)
+                                        firetouchinterest(p, b, 1)
+                                end
+                        end
+                        rs.Heartbeat:Wait()
+                end
+                cbusy = false
+        end
+
+        function gk.catch(now, b)
+                if cbusy or not (b and md.g.cr) or now < free or now < busy or held() then return end
+                local off, v = b.Position - hrp.Position, b.AssemblyLinearVelocity
+                local d = off.Magnitude
+                if d > md.g.cr or v:Dot(off) > 4 * d or owner(b) == lp and v.Magnitude > 2 or not keeper() then return end
+                local t = tm()
+                if not t or t.GetUsing() or lp:FindFirstChild("handsOnCooldown") then return end
+                cbusy = true
+                rch.lend(b, now + 0.6, md.g.cr)
+                press(off.Y >= 0 and "High Catch" or "Low Catch")
+                task.spawn(grab, b, now)
+        end
+
+        function gk.settle()
+                local t = tm()
+                local b = t and t.getHeldBall()
+                if not b then return end
+                local dl = os.clock() + 0.6
+                task.spawn(function()
+                        repeat
+                                for _, c in b:GetChildren() do
+                                        if mvs[c.ClassName] or c.Name == "Curve" then c:Destroy() end
+                                end
+                                if hrp and hum then
+                                        local v = hrp.AssemblyLinearVelocity
+                                        if (v * flat).Magnitude > hum.WalkSpeed + 10 then
+                                                t.DestroyBodyMovers()
+                                                hrp.AssemblyLinearVelocity = Vector3.new(0, math.min(v.Y, 0), 0)
+                                        end
+                                end
+                                rs.Heartbeat:Wait()
+                        until os.clock() > dl or not b.Parent
+                end)
+        end
+
+        function gk.free() free = os.clock() + 1.2 end
+
+        function gk.path(b, now, floor, m, n)
+                sim(b, track(b, now), now, floor, m, n)
+                return sm.n, sm.on, pt, px, py, pz
+        end
+
+        gk.stop = camon
+end
+
+-- auto leg
+local leg = {}
+do
+        local fn, slot
+
+        local function using(t)
+                if fn ~= t.SetUsing then
+                        fn, slot = t.SetUsing, nil
+                        for i, v in debug.getupvalues(fn) do
+                                if type(v) == "boolean" then slot = i end
+                        end
+                end
+                if slot then return debug.getupvalue(fn, slot) end
+                return t.GetUsing()
+        end
+
+        function leg.step(b)
+                local t = tm()
+                if not (t and b) or using(t) then return end
+                local d = (b.Position - hrp.Position):Dot(hrp.CFrame.RightVector)
+                local f = d > 0 and "R" or "L"
+                if math.abs(d) < 0.1 or t.check() == f then return end
+                t.Set(f)
+                local st, il = start()
+                local a, c = st and st:FindFirstChild("Foot"), il and il:FindFirstChild("Foot")
+                if a then a.Text = f end
+                if c then c.Text = f end
+        end
+end
+
+-- platform spoofer
+local plat = {}
+do
+        local uis = cloneref(game:GetService("UserInputService"))
+        local cl, ids = rep:FindFirstChild("Client"), { pc = 1, mobile = 2, console = 3 }
+        local real = uis.GamepadEnabled and 3 or uis.TouchEnabled and 2 or 1
+        local con
+
+        local function apply()
+                local cur, want = lp:GetAttribute("Platform"), md.p.on and ids[md.p.v] or real
+                if cl and cur ~= nil and cur ~= want then cl:FireServer("Platform", want) end
+        end
+
+        function plat.sync()
+                if md.p.on and not con then
+                        con = lp:GetAttributeChangedSignal("Platform"):Connect(apply)
+                elseif not md.p.on and con then
+                        con:Disconnect()
+                        con = nil
+                end
+                apply()
+        end
+end
+
+-- shield
+local shd = {}
+do
+        local cv, co, lit = rep:FindFirstChild("ChangeValue"), rep:FindFirstChild("ChangeOwner"), cloneref(game:GetService("Lighting"))
+        local pb, po, took
+        local kick, fire = 0, 0
+
+        local function side(p)
+                local n = p.Team and p.Team.Name or ""
+                return string.find(n, "Home", 1, true) and 1 or string.find(n, "Away", 1, true) and 2, string.sub(n, 1, 1) == "-"
+        end
+
+        local function foe(p)
+                if not p or p == lp then return false end
+                local s, gk = side(p)
+                return not gk and (not s or s ~= side(lp))
+        end
+
+        function shd.step(now, b)
+                if b ~= pb then
+                        pb, po, took = b, b and owner(b), nil
+                        return
+                end
+                if not (b and cv and co and md.s.r) then return end
+                local o, bv, d = owner(b), b:FindFirstChild(lp.Name), (b.Position - hrp.Position).Magnitude
+                if bv and bv:IsA("BodyVelocity") and bv.Velocity.Magnitude >= 40 then kick = now end
+                if took and o == lp then
+                        local push = b:FindFirstChild(took.Name)
+                        if push then push:Destroy() end
+                        b.AssemblyLinearVelocity = hrp.AssemblyLinearVelocity * flat + b.AssemblyLinearVelocity * up
+                        took = nil
+                elseif took and now - fire > 0.6 then
+                        took = nil
+                end
+                if po == lp and foe(o) and d <= md.s.r and now - kick > 0.5 and now - fire > 0.15 and not held() and not lit:FindFirstChild("Goal") then
+                        fire, took = now, o
+                        cv:FireServer(b)
+                        co:FireServer(b)
+                end
+                po = o
+        end
+end
+
+-- auto follow
+local fol = {}
+do
+        local tag, bound, ctl = rnd(), false
+
+        local function travel(s, t)
+                local d = 0
+                if s > 24 then
+                        local t1 = math.min(t, (s - 24) / 31)
+                        d, s, t = s * t1 - 15.5 * t1 * t1, s - 31 * t1, t - t1
+                end
+                local t2 = math.min(t, s / 12)
+                return d + s * t2 - 6 * t2 * t2
+        end
+
+        local function walk()
+                if not (hrp and hum and hrp.Parent) or hum.Health <= 0 or held() then return end
+                ctl = ctl or require(lp.PlayerScripts.PlayerModule):GetControls()
+                if ctl:GetMoveVector().Magnitude > 0 then return end
+                local b = near()
+                if not b then return end
+                local me, p, v = hrp.Position, b.Position, b.AssemblyLinearVelocity * flat
+                local s, q = v.Magnitude, p
+                if s > 1 then
+                        local dir, air = v / s, p.Y > me.Y
+                        for t = 0.05, 1.5, 0.05 do
+                                q = p + dir * (air and s * t or travel(s, t))
+                                if ((q - me) * flat).Magnitude <= hum.WalkSpeed * t then break end
+                        end
+                end
+                local d = (q - me) * flat
+                if d.Magnitude > 0.5 then hum:Move(d.Unit, false) end
+        end
+
+        function fol.sync()
+                if md.f.on and not bound then
+                        bound = true
+                        rs:BindToRenderStep(tag, Enum.RenderPriority.Input.Value + 1, walk)
+                elseif not md.f.on and bound then
+                        bound = false
+                        rs:UnbindFromRenderStep(tag)
+                end
+        end
+end
+
+-- avatar stealer
+local ava = {}
+do
+        local kinds = { Shirt = true, Pants = true, ShirtGraphic = true, BodyColors = true, CharacterMesh = true, Accessory = true }
+        local mine, worn, looks = {}, {}, {}
+        local cur, face, old, watch
+        local tok = 0
+
+        local function strip(o)
+                if not kinds[o.ClassName] or worn[o] then return end
+                mine[o] = o.Parent
+                o.Parent = nil
+        end
+
+        local function undo()
+                if watch then
+                        watch:Disconnect()
+                        watch = nil
+                end
+                for o in worn do o:Destroy() end
+                for o, p in mine do
+                        if p.Parent then o.Parent = p end
+                end
+                if face and face.Parent then face.Texture = old end
+                table.clear(worn)
+                table.clear(mine)
+                face = nil
+        end
+
+        local function uid(n)
+                local q = string.lower(n)
+                for _, p in plrs:GetPlayers() do
+                        if string.sub(string.lower(p.Name), 1, #q) == q or string.sub(string.lower(p.DisplayName), 1, #q) == q then return p.UserId end
+                end
+                return plrs:GetUserIdFromNameAsync(n)
+        end
+
+        local function hat(x, c)
+                local h = x:FindFirstChild("Handle")
+                if not h then return end
+                h.CanCollide, h.CanTouch, h.CanQuery, h.Massless = false, false, false, true
+                local a = h:FindFirstChildOfClass("Attachment")
+                local to = a and c:FindFirstChild(a.Name, true)
+                local w = Instance.new("Weld")
+                w.Name, w.Part0, w.Part1 = rnd(), h, to and to.Parent or c.Head
+                w.C0, w.C1 = to and a.CFrame or x.AttachmentPoint, to and to.CFrame or CFrame.new(0, 0.5, 0)
+                w.Parent = h
+                x.Parent = c
+        end
+
+        local function dress(c, m)
+                for _, o in c:GetChildren() do strip(o) end
+                watch = c.ChildAdded:Connect(strip)
+                for _, o in m:GetChildren() do
+                        if kinds[o.ClassName] then
+                                local x = o:Clone()
+                                worn[x] = true
+                                if x:IsA("Accessory") then hat(x, c) else x.Parent = c end
+                        end
+                end
+                local f, head = m:FindFirstChild("face"), c:FindFirstChild("Head")
+                face = f and f:IsA("Decal") and head and head:FindFirstChild("face")
+                if face then face.Texture, old = f.Texture, face.Texture end
+        end
+
+        local function wear(n, my)
+                local id = uid(n)
+                looks[id] = looks[id] or plrs:GetCharacterAppearanceAsync(id)
+                if my == tok and chr and hum then dress(chr, looks[id]) end
+        end
+
+        function ava.sync()
+                local want = md.a.on and md.a.n ~= "" and md.a.n or nil
+                if want == cur then return end
+                cur, tok = want, tok + 1
+                undo()
+                if want then task.spawn(xpcall, wear, oops, want, tok) end
+        end
+
+        function ava.bind()
+                undo()
+                cur = nil
+                ava.sync()
+        end
+end
+
+-- ball predict
+local prd = {}
+do
+        local rp, tris, hex, pts = RaycastParams.new(), {}, {}, {}
+        local bulkp, bulkc, sig, rim = {}, {}, { n = -1 }, {}
+        local at, last = 0, 1
+        local fold, con
+        local lv, spot, shown
+        rp.FilterType, rp.RespectCanCollide = Enum.RaycastFilterType.Exclude, true
+        for q = 1, 6 do rim[q] = Vector3.new(math.cos(q * math.pi / 3), 0, math.sin(q * math.pi / 3)) end
+
+        local function piece(pool, i)
+                local p = pool[i]
+                if p then return p end
+                p = Instance.new("Part")
+                p.Name, p.Material, p.Transparency = rnd(), Enum.Material.Neon, 1
+                p.Anchored, p.CanCollide, p.CanTouch, p.CanQuery, p.CastShadow = true, false, false, false, false
+                p.Parent = fold
+                pool[i], sig.dirty = p, true
+                return p
+        end
+
+        local function put(p, a, b) bulkp[#bulkp + 1], bulkc[#bulkc + 1] = p, CFrame.lookAt((a + b) / 2, b) end
+
+        local function hide()
+                if not shown then return end
+                shown, spot, sig.n = false, nil, -1
+                for _, p in tris do p.Transparency = 1 end
+                for _, p in hex do p.Transparency = 1 end
+        end
+
+        local function trace(b, now)
+                rp.FilterDescendantsInstances = { fold, b, ws:FindFirstChild("WorkspaceCharacters"), chr }
+                local hit = ws:Raycast(b.Position, Vector3.new(0, -60, 0), rp)
+                local floor = (hit and hit.Position.Y or b.Position.Y - 1.25) + 1.25
+                local n, _, _, px, py, pz = gk.path(b, now, floor, nil, 150)
+                local c = 1
+                pts[1] = b.Position
+                for i = 2, n, 2 do
+                        local p = Vector3.new(px[i], py[i], pz[i])
+                        local w = ws:Raycast(pts[c], p - pts[c], rp)
+                        c += 1
+                        pts[c] = w and w.Normal.Y < 0.6 and w.Position or p
+                        if pts[c] ~= p or py[i] <= floor + 0.05 and py[i - 1] > floor + 0.05 then break end
+                end
+                for i = c + 1, #pts do pts[i] = nil end
+                return c
+        end
+
+        local function tri(n, p, dir, side, r, sz, col, tr, set)
+                local a, b, c = p + dir * r, p + (side * 0.866 - dir * 0.5) * r, p - (side * 0.866 + dir * 0.5) * r
+                local e1, e2, e3 = piece(tris, n * 3 - 2), piece(tris, n * 3 - 1), piece(tris, n * 3)
+                if set then
+                        e1.Size, e2.Size, e3.Size = sz, sz, sz
+                        e1.Color, e2.Color, e3.Color = col, col, col
+                        e1.Transparency, e2.Transparency, e3.Transparency = tr, tr, tr
+                end
+                put(e1, a, b)
+                put(e2, b, c)
+                put(e3, c, a)
+        end
+
+        local function ground(spin, r, col, set)
+                local sz = Vector3.new(0.12, 0.06, r)
+                for q = 1, 6 do
+                        local p = piece(hex, q)
+                        p.Size = sz
+                        if set then p.Color, p.Transparency = col, 0.1 end
+                        put(p, spin * (rim[q] * r), spin * (rim[q % 6 + 1] * r))
+                end
+        end
+
+        local function draw(first, land)
+                shown = true
+                local eye, col = ws.CurrentCamera.CFrame.Position, md.v.c
+                local total = 0
+                for i = first + 1, land do total += (pts[i] - pts[i - 1]).Magnitude end
+                local gap = math.max(2.6, total / 24)
+                local size = math.floor(math.min(gap / 2.6, 2.5) * 20 + 0.5) / 20
+                local w = 0.13 * math.min(size, 1.8)
+                local fresh = sig.dirty or sig.n < 0 or sig.size ~= size or sig.col ~= col
+                table.clear(bulkp)
+                table.clear(bulkc)
+                local n, acc, want = 0, 0, gap - (os.clock() * 7 * size) % gap
+                for i = first + 1, land do
+                        local seg = pts[i] - pts[i - 1]
+                        local len = seg.Magnitude
+                        while len > 0 and acc + len >= want and n < 24 do
+                                n += 1
+                                local p, dir = pts[i - 1] + seg * ((want - acc) / len), seg.Unit
+                                local side, k = dir:Cross(eye - p), n / 24
+                                local r = 0.43 * size * (1 - 0.45 * k)
+                                side = side.Magnitude > 1e-3 and side.Unit or up
+                                tri(n, p, dir, side, r, Vector3.new(w, w, r * 1.732), col, 0.05 + 0.65 * k, fresh or n > sig.n)
+                                want += gap
+                        end
+                        acc += len
+                end
+                if fresh or n < sig.n then for i = n * 3 + 1, #tris do tris[i].Transparency = 1 end end
+                local g = pts[land] - Vector3.new(0, 1.2, 0)
+                spot = spot and spot:Lerp(g, 0.35) or g
+                ground(CFrame.new(spot) * CFrame.Angles(0, os.clock() * 0.6, 0), 1.86 + math.sin(os.clock() * 5) * 0.14, col, fresh)
+                ws:BulkMoveTo(bulkp, bulkc, Enum.BulkMoveMode.FireCFrameChanged)
+                sig.size, sig.col, sig.n, sig.dirty = size, col, n, false
+        end
+
+        local function frame()
+                local b, now = near(), os.clock()
+                local v = b and b.AssemblyLinearVelocity
+                if not v or v.Magnitude < 3 or held() then return hide() end
+                if now - at >= 0.1 or (v - lv).Magnitude > 8 then at, lv, last = now, v, trace(b, now) end
+                local first = math.max(1, math.min(1 + math.floor((now - at) * 30), last - 1))
+                pts[first] = b.Position
+                draw(first, last)
+        end
+
+        function prd.sync()
+                if md.v.on and not con then
+                        fold = Instance.new("Folder")
+                        fold.Name, fold.Parent = rnd(), ws.CurrentCamera
+                        con = rs.PreRender:Connect(function() xpcall(frame, oops) end)
+                elseif not md.v.on and con then
+                        con:Disconnect()
+                        fold:Destroy()
+                        con, fold, shown = nil, nil, false
+                        table.clear(tris)
+                        table.clear(hex)
+                end
+        end
+end
+
+do
+        local hb
+
+        local function step()
+                if not (hrp and hum and hrp.Parent) then return end
+                local now, b = os.clock(), near()
+                if md.g.dive then gk.dive(now) end
+                if md.g.catch then gk.catch(now, b) end
+                if md.l.on then leg.step(b) end
+                if md.s.on then shd.step(now, b) end
+                rch.step(now, b)
+        end
+
+        sync = function()
+                local on = md.r.on or md.b.on or md.g.dive or md.g.catch or md.l.on or md.s.on
+                rch.sync()
+                prd.sync()
+                plat.sync()
+                fol.sync()
+                ava.sync()
+                if on and not hb then
+                        hb = rs.Heartbeat:Connect(function() xpcall(step, oops) end)
+                elseif not on and hb then
+                        hb:Disconnect()
+                        hb = nil
+                        rch.stop()
+                end
+        end
+end
+
+do
+        local lnm = { "Head", "Torso", "Right Arm", "Left Arm", "Right Leg", "Left Leg" }
+
+        local function bind(c)
+                c = c or lp.Character
+                if not c then return end
+                chr, hrp, hum = c, nil, nil
+                table.clear(lmb)
+                for _, x in arm do x:Disconnect() end
+                table.clear(arm)
+                rch.bind()
+                local h, r = c:WaitForChild("Humanoid"), c:WaitForChild("HumanoidRootPart")
+                for _, n in lnm do
+                        local p = c:WaitForChild(n, 5)
+                        if p then lmb[#lmb + 1] = p end
+                end
+                if chr ~= c then return end
+                hum, hrp = h, r
+                rch.bind()
+                ava.bind()
+                local ra = c:FindFirstChild("Right Arm")
+                if not ra then return end
+                arm[1] = ra.ChildAdded:Connect(function(o) if o.Name == "handsOn" and (md.g.dive or md.g.catch) then gk.settle() end end)
+                arm[2] = ra.ChildRemoved:Connect(function(o) if o.Name == "handsOn" then gk.free() end end)
+        end
+
+        if lp.Character then task.spawn(bind, lp.Character) end
+        cons[#cons + 1] = lp.CharacterAdded:Connect(bind)
+end
+
+-- ==========================================
+-- INTERFACE: adv Hub (WindUI + Botão Flutuante)
+-- ==========================================
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+
+local Window = WindUI:CreateWindow({
+        Title = "adv Hub",
+        Icon = ico or "user",
+        Author = "",
+        Folder = "AdvHub",
+        Size = UDim2.fromOffset(460, 320),
+        Transparent = true,
+        Theme = "Dark",
+        SideBarWidth = 140,
+        HasOutline = false,
+        ToggleKey = Enum.KeyCode.K,
+        TopBar = {
+                Minimize = true,
+                Close = true,
+        }
+})
+
+local function createCategory(title, icon)
+        if Window.Category then
+                return Window:Category({ Title = title, Icon = icon })
+        end
+        return Window:Section({ Title = title, Opened = true })
+end
+
+-- Aba Info
+local TabInfo = Window:Tab({ Title = "Info", Icon = "info" })
+do
+        local inv = "2ERyMtmsd2"
+
+        local function num(n)
+                local s = string.reverse((string.gsub(string.reverse(tostring(math.floor(n))), "(%d%d%d)", "%1,")))
+                return (string.gsub(s, "^,", ""))
+        end
+
+        local function dc(card)
+                local ok, res = pcall(request, { Url = "https://discord.com/api/v10/invites/" .. inv .. "?with_counts=true", Method = "GET" })
+                if not ok or res.StatusCode ~= 200 then
+                        if card and card.SetDesc then card:SetDesc("--") end
+                        return oops(ok and res.StatusCode or res)
+                end
+                local d = hs:JSONDecode(res.Body)
+                local g = d.guild
+                if card and card.SetTitle then card:SetTitle(g.name) end
+                local on, all = num(d.approximate_presence_count), num(d.approximate_member_count)
+                if card and card.SetDesc then card:SetDesc(string.format('<font color="#3ba55d">%s online</font>    %s members', on, all)) end
+                if not g.icon then return end
+                local f = "veadc.png"
+                writefile(f, game:HttpGet(string.format("https://cdn.discordapp.com/icons/%s/%s.png?size=128", g.id, g.icon)))
+                if card and card.SetImage then card:SetImage(getcustomasset(f), 48) end
+        end
+
+        local function copy()
+                setclipboard("https://discord.gg/" .. inv)
+                WindUI:Notify({ Title = "adv Hub", Content = "invite copied", Duration = 3, Icon = "check" })
+        end
+
+        TabInfo:Paragraph({ Title = '<font size="24"><b>adv Hub</b></font>', Desc = "tcs", Image = ico, ImageSize = 52 })
+        local card = TabInfo:Paragraph({ Title = "discord", Desc = "loading...", Image = "geist:logo-discord", ImageSize = 48 })
+        TabInfo:Button({ Title = "copy invite", Icon = "geist:logo-discord", Justify = "Center", Callback = copy })
+        local en, ev = identifyexecutor()
+        TabInfo:Paragraph({ Title = "executor", Desc = ev and en .. " " .. ev or en, Image = "cpu", ImageSize = 20 })
+        task.spawn(xpcall, dc, oops, card)
+end
+
+-- Função auxiliar para criar os blocos visuais de Aviso Vermelho e Info da interface
+local function addCustomWarnAndInfo(tab, sectionTitle, warnText, infoText)
+        local secTitle = tab:Section({ Title = sectionTitle })
+        if secTitle and secTitle.Container then
+                local WarningFrame = Instance.new("Frame")
+                WarningFrame.Size = UDim2.new(1, 0, 0, 85)
+                WarningFrame.BackgroundColor3 = Color3.fromRGB(235, 75, 75)
+                WarningFrame.BorderSizePixel = 0
+                WarningFrame.Parent = secTitle.Container
+
+                local UICornerWarn = Instance.new("UICorner")
+                UICornerWarn.CornerRadius = UDim.new(0, 8)
+                UICornerWarn.Parent = WarningFrame
+
+                local IconWarn = Instance.new("TextLabel")
+                IconWarn.Size = UDim2.new(0, 40, 0, 40)
+                IconWarn.Position = UDim2.new(0, 10, 0, 10)
+                IconWarn.BackgroundTransparency = 1
+                IconWarn.Text = "⚠"
+                IconWarn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                IconWarn.TextSize = 24
+                IconWarn.Font = Enum.Font.GothamBold
+                IconWarn.Parent = WarningFrame
+
+                local TitleWarn = Instance.new("TextLabel")
+                TitleWarn.Size = UDim2.new(1, -60, 0, 20)
+                TitleWarn.Position = UDim2.new(0, 50, 0, 10)
+                TitleWarn.BackgroundTransparency = 1
+                TitleWarn.Text = "Aviso"
+                TitleWarn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                TitleWarn.TextSize = 14
+                TitleWarn.Font = Enum.Font.GothamBold
+                TitleWarn.TextXAlignment = Enum.TextXAlignment.Left
+                TitleWarn.Parent = WarningFrame
+
+                local DescWarn = Instance.new("TextLabel")
+                DescWarn.Size = UDim2.new(1, -60, 0, 50)
+                DescWarn.Position = UDim2.new(0, 50, 0, 30)
+                DescWarn.BackgroundTransparency = 1
+                DescWarn.Text = warnText
+                DescWarn.TextColor3 = Color3.fromRGB(255, 230, 230)
+                DescWarn.TextSize = 12
+                DescWarn.Font = Enum.Font.Gotham
+                DescWarn.TextXAlignment = Enum.TextXAlignment.Left
+                DescWarn.TextYAlignment = Enum.TextYAlignment.Top
+                DescWarn.Parent = WarningFrame
+        else
+                tab:Paragraph({ Title = "Aviso", Desc = warnText, Color = "Red" })
+        end
+
+        if infoText then
+                local secInfo = tab:Section({ Title = "" })
+                if secInfo and secInfo.Container then
+                        local InfoBox = Instance.new("Frame")
+                        InfoBox.Size = UDim2.new(1, 0, 0, 60)
+                        InfoBox.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+                        InfoBox.BorderSizePixel = 0
+                        InfoBox.Parent = secInfo.Container
+
+                        local UICornerInfo = Instance.new("UICorner")
+                        UICornerInfo.CornerRadius = UDim.new(0, 8)
+                        UICornerInfo.Parent = InfoBox
+
+                        local IconInfo = Instance.new("TextLabel")
+                        IconInfo.Size = UDim2.new(0, 40, 0, 40)
+                        IconInfo.Position = UDim2.new(0, 5, 0.5, -20)
+                        IconInfo.BackgroundTransparency = 1
+                        IconInfo.Text = "ℹ"
+                        IconInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
+                        IconInfo.TextSize = 24
+                        IconInfo.Font = Enum.Font.GothamBold
+                        IconInfo.Parent = InfoBox
+
+                        local TitleInfo = Instance.new("TextLabel")
+                        TitleInfo.Size = UDim2.new(1, -60, 0, 20)
+                        TitleInfo.Position = UDim2.new(0, 45, 0, 10)
+                        TitleInfo.BackgroundTransparency = 1
+                        TitleInfo.Text = "Info"
+                        TitleInfo.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        TitleInfo.TextSize = 14
+                        TitleInfo.Font = Enum.Font.GothamBold
+                        TitleInfo.TextXAlignment = Enum.TextXAlignment.Left
+                        TitleInfo.Parent = InfoBox
+
+                        local DescInfo = Instance.new("TextLabel")
+                        DescInfo.Size = UDim2.new(1, -60, 0, 30)
+                        DescInfo.Position = UDim2.new(0, 45, 0, 30)
+                        DescInfo.BackgroundTransparency = 1
+                        DescInfo.Text = infoText
+                        DescInfo.TextColor3 = Color3.fromRGB(180, 180, 180)
+                        DescInfo.TextSize = 12
+                        DescInfo.Font = Enum.Font.Gotham
+                        DescInfo.TextXAlignment = Enum.TextXAlignment.Left
+                        DescInfo.TextYAlignment = Enum.TextYAlignment.Top
+                        DescInfo.Parent = InfoBox
+                else
+                        tab:Paragraph({ Title = "Info", Desc = infoText })
+                end
+        end
+end
+
+local tgl = {}
+do
+        local cf = Window.ConfigManager and Window.ConfigManager:CreateConfig("tcs")
+        local sq = false
+
+        local CatMain = createCategory("Main", "circle")
+        local CatAuto = createCategory("Auto", "zap")
+        local CatMisc = createCategory("Misc", "settings")
+
+        local function save()
+                if not cf or sq then return end
+                sq = true
+                task.delay(1, function()
+                        sq = false
+                        pcall(function() cf:Save() end)
+                end)
+        end
+
+        local function set(m, key)
+                return function(v)
+                        m[key] = v
+                        sync()
+                        save()
+                end
+        end
+
+        local function lim(m, key, lo, hi)
+                return function(v)
+                        local n = tonumber(v)
+                        if not n then return end
+                        m[key] = math.clamp(n, lo, hi)
+                        save()
+                end
+        end
+
+        local function setupReachTab(tabTitle, icon, k, other)
+                local m = md[k]
+                local t = CatMain:Tab({ Title = tabTitle, Icon = icon })
+
+                addCustomWarnAndInfo(
+                        t,
+                        tabTitle,
+                        "Using 6 or more reach might\nbe suspicious (blatant), use\nwith caution.",
+                        "Only one reach can be on at\na time"
+                )
+
+                local function flip(v)
+                        m.on = v
+                        if v and md[other].on and tgl[other] and tgl[other].Set then
+                                tgl[other]:Set(false)
+                        elseif v and md[other].on then
+                                md[other].on = false
+                        end
+                        sync()
+                        save()
+                end
+
+                tgl[k] = t:Toggle({ Title = "Enable " .. string.lower(tabTitle), Flag = k .. "on", Default = m.on, Value = m.on, Callback = flip })
+                t:Input({ Title = tabTitle .. " range", Flag = k .. "sz", Value = "", Placeholder = "", Callback = lim(m, "sz", 0.5, 100) })
+                if t.Divider then t:Divider() end
+                t:Toggle({ Title = "visualizer", Flag = k .. "vis", Default = m.vis, Value = m.vis, Callback = set(m, "vis") })
+                t:Colorpicker({ Title = "visualizer color", Flag = k .. "c", Default = m.c, Callback = set(m, "c") })
+                t:Slider({ Title = "visualizer transparency", Flag = k .. "a", Min = 0, Max = 1, Default = m.a, Value = { Min = 0, Max = 1, Default = m.a }, Step = 0.05, Callback = set(m, "a") })
+        end
+
+        setupReachTab("Reach", "crosshair", "r", "b")
+        setupReachTab("Ball Reach", "circle-dot", "b", "r")
+
+        local TabShield = CatMain:Tab({ Title = "Shield", Icon = "shield" })
+        TabShield:Toggle({ Title = "shield", Flag = "son", Default = md.s.on, Value = md.s.on, Callback = set(md.s, "on") })
+        TabShield:Input({ Title = "shield range", Flag = "sr", Value = "", Placeholder = "", Callback = lim(md.s, "r", 2, 12) })
+
+        local TabPredict = CatMain:Tab({ Title = "Ball Predict", Icon = "route" })
+        TabPredict:Toggle({ Title = "ball predict", Flag = "von", Default = md.v.on, Value = md.v.on, Callback = set(md.v, "on") })
+        TabPredict:Colorpicker({ Title = "predict color", Flag = "vc", Default = md.v.c, Callback = set(md.v, "c") })
+
+        local TabGK = CatAuto:Tab({ Title = "GK", Icon = "hand" })
+        addCustomWarnAndInfo(
+                TabGK,
+                "GK",
+                "Using 5 or more range might\nbe suspicious (blatant), use\nwith caution.",
+                nil
+        )
+        TabGK:Toggle({ Title = "auto catch", Flag = "gcatch", Default = md.g.catch, Value = md.g.catch, Callback = set(md.g, "catch") })
+        TabGK:Input({ Title = "catch range", Flag = "gcr", Value = "", Placeholder = "", Callback = lim(md.g, "cr", 3, 45) })
+        if TabGK.Divider then TabGK:Divider() end
+        TabGK:Toggle({ Title = "auto dive", Flag = "gdive", Default = md.g.dive, Value = md.g.dive, Callback = set(md.g, "dive") })
+
+        local TabLeg = CatAuto:Tab({ Title = "Auto Leg", Icon = "arrow-left-right" })
+        TabLeg:Toggle({ Title = "auto leg", Flag = "lon", Default = md.l.on, Value = md.l.on, Callback = set(md.l, "on") })
+
+        local TabFollow = CatAuto:Tab({ Title = "Auto Follow", Icon = "footprints" })
+        TabFollow:Toggle({ Title = "auto follow ball", Flag = "fon", Default = md.f.on, Value = md.f.on, Callback = set(md.f, "on") })
+
+        local TabPlat = CatMisc:Tab({ Title = "Platform Spoofer", Icon = "smartphone" })
+        TabPlat:Toggle({ Title = "platform spoofer", Flag = "pon", Default = md.p.on, Value = md.p.on, Callback = set(md.p, "on") })
+        TabPlat:Dropdown({ Title = "platform", Flag = "pv", Values = { "pc", "mobile", "console" }, Value = md.p.v, Default = md.p.v, Callback = set(md.p, "v") })
+
+        local TabAva = CatMisc:Tab({ Title = "Avatar Stealer", Icon = "user" })
+        TabAva:Toggle({ Title = "avatar stealer", Flag = "aon", Default = md.a.on, Value = md.a.on, Callback = set(md.a, "on") })
+        TabAva:Input({ Title = "username", Flag = "an", Value = "", Placeholder = "", Callback = set(md.a, "n") })
+
+        if cf then pcall(function() cf:Load() end) end
+end
+
+if Window.SelectTab then
+        pcall(function() Window:SelectTab(2) end)
+elseif TabInfo and TabInfo.Select then
+        pcall(function() TabInfo:Select() end)
+end
+
+-- Botão Flutuante
+local PlayerGui = lp:WaitForChild("PlayerGui")
+local oldFloating = PlayerGui:FindFirstChild("FloatingToggleUI")
+if oldFloating then oldFloating:Destroy() end
+
+local FloatingGui = Instance.new("ScreenGui")
+FloatingGui.Name = "FloatingToggleUI"
+FloatingGui.ResetOnSpawn = false
+FloatingGui.DisplayOrder = 827
+FloatingGui.IgnoreGuiInset = true
+FloatingGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+FloatingGui.Parent = PlayerGui
+
+local MainBtn = Instance.new("TextButton")
+MainBtn.Name = "FloatingToggle"
+MainBtn.Size = UDim2.new(0, 170, 0, 65)
+MainBtn.Position = UDim2.new(0, 20, 0.5, -32)
+MainBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+MainBtn.BorderSizePixel = 0
+MainBtn.Text = ""
+MainBtn.Parent = FloatingGui
+
+local UICornerMain = Instance.new("UICorner")
+UICornerMain.CornerRadius = UDim.new(0, 32)
+UICornerMain.Parent = MainBtn
+
+local BottomLine = Instance.new("Frame")
+BottomLine.Size = UDim2.new(0.7, 0, 0, 3)
+BottomLine.Position = UDim2.new(0.15, 0, 1, -8)
+BottomLine.BackgroundColor3 = Color3.fromRGB(255, 210, 0)
+BottomLine.BorderSizePixel = 0
+BottomLine.Parent = MainBtn
+
+local UICornerLine = Instance.new("UICorner")
+UICornerLine.CornerRadius = UDim.new(1, 0)
+UICornerLine.Parent = BottomLine
+
+local GrayBox = Instance.new("Frame")
+GrayBox.Size = UDim2.new(0, 50, 0, 50)
+GrayBox.Position = UDim2.new(0, 8, 0.5, -25)
+GrayBox.BackgroundColor3 = Color3.fromRGB(180, 180, 180)
+GrayBox.BorderSizePixel = 0
+GrayBox.Parent = MainBtn
+
+local UICornerGray = Instance.new("UICorner")
+UICornerGray.CornerRadius = UDim.new(0, 15)
+UICornerGray.Parent = GrayBox
+
+local FaceIcon = Instance.new("TextLabel")
+FaceIcon.Size = UDim2.new(1, 0, 1, 0)
+FaceIcon.BackgroundTransparency = 1
+FaceIcon.Text = "☹"
+FaceIcon.TextColor3 = Color3.fromRGB(0, 0, 0)
+FaceIcon.TextSize = 28
+FaceIcon.Font = Enum.Font.GothamBold
+FaceIcon.Parent = GrayBox
+
+local XIcon = Instance.new("TextLabel")
+XIcon.Size = UDim2.new(1, 0, 1, 0)
+XIcon.BackgroundTransparency = 1
+XIcon.Text = "X"
+XIcon.TextColor3 = Color3.fromRGB(200, 0, 0)
+XIcon.TextSize = 20
+XIcon.Font = Enum.Font.GothamBold
+XIcon.ZIndex = 2
+XIcon.Parent = GrayBox
+
+local Dots = Instance.new("TextLabel")
+Dots.Size = UDim2.new(0, 20, 1, 0)
+Dots.Position = UDim2.new(0, 5, 0, 0)
+Dots.BackgroundTransparency = 1
+Dots.Text = "⋮"
+Dots.TextColor3 = Color3.fromRGB(150, 150, 150)
+Dots.TextSize = 24
+Dots.Font = Enum.Font.GothamBold
+Dots.Parent = MainBtn
+
+local Divider = Instance.new("Frame")
+Divider.Size = UDim2.new(0, 1, 0.5, 0)
+Divider.Position = UDim2.new(0, 120, 0.25, 0)
+Divider.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+Divider.BorderSizePixel = 0
+Divider.Parent = MainBtn
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 50, 1, 0)
+CloseBtn.Position = UDim2.new(1, -50, 0, 0)
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.Text = "×"
+CloseBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+CloseBtn.TextSize = 28
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Parent = MainBtn
+
+local isOpen = true
+local windGui = PlayerGui:FindFirstChild("AdvHub") or PlayerGui:FindFirstChild("FreeUI") or PlayerGui:WaitForChild("AdvHub", 3)
+
+local function ToggleHub()
+        isOpen = not isOpen
+
+        if windGui and windGui:IsA("ScreenGui") then
+                windGui.Enabled = isOpen
+        elseif Window and Window.Toggle then
+                pcall(function() Window:Toggle() end)
+        end
+
+        if isOpen then
+                GrayBox.BackgroundColor3 = Color3.fromRGB(180, 180, 180)
+        else
+                GrayBox.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+        end
+end
+
+MainBtn.MouseButton1Click:Connect(ToggleHub)
+
+CloseBtn.MouseButton1Click:Connect(function()
+        if isOpen then
+                ToggleHub()
+        end
+end)
+
+_G.veastop = function()
+        _G.veastop = nil
+        for _, m in md do if m.on then m.on = false end end
+        md.g.dive, md.g.catch = false, false
+        sync()
+        gk.stop()
+        for _, c in cons do c:Disconnect() end
+        for _, c in arm do c:Disconnect() end
+        table.clear(cons)
+        table.clear(arm)
+        if FloatingGui then FloatingGui:Destroy() end
+        if Window and Window.Destroy then pcall(function() Window:Destroy() end) end
+end
+
+if Window and Window.OnDestroy then
+        Window:OnDestroy(function()
+                if _G.veastop then _G.veastop() end
+        end)
+end
+
+print("adv Hub e botão flutuante carregados com sucesso!")
