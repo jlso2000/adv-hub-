@@ -1,5 +1,4 @@
-﻿.
-if _G.veastop then _G.veastop() end
+﻿if _G.veastop then _G.veastop() end
 
 local plrs, rs = cloneref(game:GetService("Players")), cloneref(game:GetService("RunService"))
 local ws, rep = cloneref(game:GetService("Workspace")), cloneref(game:GetService("ReplicatedStorage"))
